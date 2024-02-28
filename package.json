@@ -1,0 +1,28 @@
+{
+  "name": "woo-product-block",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "wp-scripts build",
+    "start": "wp-scripts start"
+  },
+  "author": "James Welbes",
+  "license": "ISC",
+  "dependencies": {
+    "@woocommerce/woocommerce-rest-api": "^1.0.1",
+    "@wordpress/api-fetch": "^6.49.0",
+    "@wordpress/blocks": "^12.29.0",
+    "@wordpress/components": "^27.0.0",
+    "@wordpress/data": "^9.22.0",
+    "@wordpress/element": "^5.29.0",
+    "@wordpress/i18n": "^4.52.0",
+    "@wordpress/scripts": "^27.3.0",
+    "filepond": "^4.30.6",
+    "filepond-plugin-file-validate-type": "^1.2.9",
+    "filepond-plugin-image-preview": "^4.6.12",
+    "lodash": "^4.17.21",
+    "react-filepond": "^7.1.2"
+  }
+}

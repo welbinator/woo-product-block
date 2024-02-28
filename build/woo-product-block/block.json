@@ -1,0 +1,39 @@
+{
+  "apiVersion": 2,
+  "name": "create-block/woocommerce-product-block",
+  "version": "1.0.0",
+  "title": "WooCommerce Product Block",
+  "category": "widgets",
+  "icon": "smiley",
+  "description": "This block displays a form for creating a WooCommerce Product.",
+  "textDomain": "woo-product-block",
+  "editorScript": "file:./index.js",
+  "editorStyle": "file:./index.css",
+  "style": "file.:/style-index.css",
+  "attributes": {
+    "productName": {
+      "type": "string",
+      "default": ""
+    },
+    "productDescription": {
+      "type": "string",
+      "default": ""
+    },
+    "productExcerpt": {
+      "type": "string",
+      "default": ""
+    },
+    "price": {
+      "type": "number",
+      "default": ""
+    },
+    "salePrice": {
+      "type": "number",
+      "default": ""
+    },
+    "isVirtual": {
+      "type": "boolean",
+      "default": false
+    }
+  }
+}
