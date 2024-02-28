@@ -2,7 +2,7 @@ import { registerBlockType } from '@wordpress/blocks';
 import './style.scss';
 import Edit from './edit';
 
-registerBlockType('your-namespace/woocommerce-product-block', {
+registerBlockType('woo-product-block/woocommerce-product-block', {
     apiVersion: 2,
     title: 'WooCommerce Product Block',
     description: 'A block for creating WooCommerce products.',

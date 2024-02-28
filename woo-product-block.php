@@ -29,13 +29,13 @@ function woo_product_block_register_block() {
     // Assuming 'woo-product-block-editor' is the handle for your script
     wp_localize_script('woo-product-block-editor', 'wooProductBlockData', array(
         'nonce' => wp_create_nonce('wp_rest'),
-        'apiUrl' => esc_url_raw(rest_url('your-namespace/v1/create-product')),
+        'apiUrl' => esc_url_raw(rest_url('woo-product-block/v1/create-product')),
     ));
     
     wp_enqueue_script('woo-product-block-editor');
 
     // Register the block, and associate it with the editor script.
-    register_block_type( 'your-namespace/woocommerce-product-block', array(
+    register_block_type( 'woo-product-block/woocommerce-product-block', array(
         'editor_script' => 'woo-product-block-editor',
         'render_callback' => 'woo_product_block_render_callback',
     ) );
@@ -58,7 +58,7 @@ function woo_product_block_register_block() {
     // Localize script with categories data
     wp_localize_script('woo-product-block-editor', 'wooProductBlockData', [
         'nonce' => wp_create_nonce('wp_rest'),
-        'apiUrl' => esc_url_raw(rest_url('your-namespace/v1/create-product')),
+        'apiUrl' => esc_url_raw(rest_url('woo-product-block/v1/create-product')),
         'categories' => $categories_for_js,
     ]);
 
@@ -70,7 +70,7 @@ function woo_product_block_render_callback( $block_attributes, $content ) {
     // Example form. In a real scenario, you should fetch categories and handle file uploads securely.
     $form_html = <<<HTML
 <div class="woo-product-form">
-    <form id="woo-product-create-form" method="post">
+    <form id="woo-product-create-form" method="post" enctype="multipart/form-data">
         <label for="product_name">Product Name</label>
         <input type="text" id="product_name" name="product_name" required>
 
@@ -123,22 +123,43 @@ function toggleStockField(checkbox) {
 document.getElementById('woo-product-create-form').addEventListener('submit', function(event) {
     event.preventDefault();
 
-    // FormData to collect and process form data
-    const formData = new FormData(this);
-    const productName = formData.get('product_name'); // Get the product name from the form
-    const jsonFormData = Object.fromEntries(formData);
-    const categories = formData.getAll('product_categories[]');
-    jsonFormData.product_categories = categories;
-    
+    // Creating a new FormData object
+    const formData = new FormData(this); // Use the form directly
+
+    // Getting product name and categories directly from FormData
+    const productName = formData.get('product_name');
+    const categories = formData.getAll('product_categories[]'); // Get all selected categories
+
+    // Preparing JSON data excluding the file
+    const jsonFormData = {};
+    formData.forEach((value, key) => {
+        // Exclude the file field from the JSON object
+        if (key !== 'product_thumbnail') {
+            jsonFormData[key] = value;
+        }
+    });
+
+    // Adding categories back into the JSON since they're not a single entry
+    jsonFormData['product_categories'] = categories;
+
+    // Removing the file from the original FormData and appending it separately
+    const file = formData.get('product_thumbnail');
+    formData.delete('product_thumbnail'); // Remove the file to avoid JSON conversion issues
+
+    // Append the JSON data as a string under a new key
+    formData.append('json_data', JSON.stringify(jsonFormData));
+
+    // Re-append the file if it exists
+    if (file) formData.append('product_thumbnail', file);
 
     // Fetch API call to submit the form data to the server
     fetch(wooProductBlockData.apiUrl, {
         method: 'POST',
         headers: {
             'X-WP-Nonce': wooProductBlockData.nonce,
-            'Content-Type': 'application/json'
+            // Do not set 'Content-Type': 'application/json' when using FormData with files
         },
-        body: JSON.stringify(jsonFormData),
+        body: formData, // Send the modified FormData
     })
     .then(response => {
         if (!response.ok) {
@@ -150,20 +171,15 @@ document.getElementById('woo-product-create-form').addEventListener('submit', fu
         // Success: Displaying a message with the product name and resetting the form
         document.getElementById('woo-product-create-form').insertAdjacentHTML('afterend', '<p>' + productName + ' successfully created</p>');
 
-        // Clearing the form manually for inputs that may not be cleared by form.reset()
+        // Reset the form for new input
         document.getElementById('woo-product-create-form').reset();
-        clearCustomFormElements();
-
-        // Removing the success message after a delay to make the UI cleaner
-        // setTimeout(() => {
-        //     successMessage.remove();
-        // }, 5000);
     })
     .catch(error => {
         console.error('Error:', error);
         document.getElementById('woo-product-create-form').insertAdjacentHTML('afterend', '<p>Error creating product</p>');
     });
 });
+
 
 // Function to clear any custom form elements that are not reset by default
 function clearCustomFormElements() {
@@ -210,12 +226,38 @@ HTML;
 function create_woocommerce_product_from_form( WP_REST_Request $request ) {
     // Extracting all data sent in the request
     $data = $request->get_params();
-
+    $files = $request->get_file_params(); // Get uploaded files
     $product = new WC_Product_Simple();
     $product->set_name($data['product_name']);
     $product->set_description($data['product_description']);
     $product->set_short_description($data['product_excerpt']);
     $product->set_regular_price($data['price']);
+    $product_id = $product->save(); // Save the product to get an ID
+
+    // Handle the uploaded file for the product thumbnail
+    if (!empty($files['product_thumbnail'])) {
+        $file = $files['product_thumbnail'];
+
+        // Validate the file size (5MB max) and type
+        if ($file['size'] <= 5 * 1024 * 1024 && in_array($file['type'], ['image/jpeg', 'image/png', 'image/webp'])) {
+            require_once(ABSPATH . 'wp-admin/includes/image.php');
+            require_once(ABSPATH . 'wp-admin/includes/file.php');
+            require_once(ABSPATH . 'wp-admin/includes/media.php');
+            
+            // Upload the file and get the attachment ID
+            $attachment_id = media_handle_upload('product_thumbnail', 0);
+            if (!is_wp_error($attachment_id)) {
+                // Set the product image
+                set_post_thumbnail($product_id, $attachment_id);
+            } else {
+                // Handle errors
+                return new WP_Error('upload_error', $attachment_id->get_error_message(), array('status' => 400));
+            }
+        } else {
+            // File size/type validation error
+            return new WP_Error('invalid_file', 'Invalid file size or type', array('status' => 400));
+        }
+    }
     
     if (!empty($data['sale_price'])) {
         $product->set_sale_price($data['sale_price']);
@@ -255,7 +297,7 @@ function create_woocommerce_product_from_form( WP_REST_Request $request ) {
 
 
 add_action( 'rest_api_init', function () {
-    register_rest_route( 'your-namespace/v1', '/create-product', array(
+    register_rest_route( 'woo-product-block/v1', '/create-product', array(
         'methods' => 'POST',
         'callback' => 'create_woocommerce_product_from_form',
         'permission_callback' => function () {
