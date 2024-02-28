@@ -39,6 +39,30 @@ function woo_product_block_register_block() {
         'editor_script' => 'woo-product-block-editor',
         'render_callback' => 'woo_product_block_render_callback',
     ) );
+
+    // Fetch WooCommerce product categories
+    $product_categories = get_terms([
+        'taxonomy' => 'product_cat',
+        'hide_empty' => false,
+    ]);
+
+    // Prepare categories for JavaScript
+    $categories_for_js = [];
+    foreach ($product_categories as $category) {
+        $categories_for_js[] = [
+            'id' => $category->term_id,
+            'name' => $category->name,
+        ];
+    }
+
+    // Localize script with categories data
+    wp_localize_script('woo-product-block-editor', 'wooProductBlockData', [
+        'nonce' => wp_create_nonce('wp_rest'),
+        'apiUrl' => esc_url_raw(rest_url('your-namespace/v1/create-product')),
+        'categories' => $categories_for_js,
+    ]);
+
+    wp_enqueue_script('woo-product-block-editor');
 }
 add_action( 'init', 'woo_product_block_register_block' );
 
@@ -66,11 +90,7 @@ function woo_product_block_render_callback( $block_attributes, $content ) {
         <input type="checkbox" id="is_virtual" name="is_virtual" value="yes">
 
         <!-- Simplified for example. You should dynamically generate category options. -->
-        <label for="product_categories">Product Categories</label>
-        <select id="product_categories" name="product_categories">
-            <option value="category1">Category 1</option>
-            <option value="category2">Category 2</option>
-        </select>
+        <div id="product_categories_checkboxes"></div>
 
         <label for="product_thumbnail">Product Thumbnail</label>
         <input type="file" id="product_thumbnail" name="product_thumbnail" accept="image/png, image/jpeg">
@@ -99,25 +119,62 @@ function toggleStockField(checkbox) {
         stockLabel.style.display = 'none';
     }
 }
+
 document.getElementById('woo-product-create-form').addEventListener('submit', function(event) {
     event.preventDefault();
 
     const formData = new FormData(this);
+    const productName = formData.get('product_name'); // Get the product name from the form
+    console.log('Product name: ' + productName);
+    // Convert FormData to JSON
+    // Assuming all your form fields can be stringified directly
+    const jsonFormData = Object.fromEntries(formData);
 
-    // Correctly embedding PHP in JavaScript
     fetch(wooProductBlockData.apiUrl, {
         method: 'POST',
         headers: {
             'X-WP-Nonce': wooProductBlockData.nonce,
             'Content-Type': 'application/json'
         },
-        body: JSON.stringify(Object.fromEntries(formData)),
+        body: JSON.stringify(jsonFormData),
     })
-    .then(response => response.json())
-    .then(data => console.log(data))
-    .catch(error => console.error('Error:', error));
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Network response was not ok');
+        }
+        return response.json();
+    })
+    .then(data => {
+        console.log(data);
+        // Display success message with the product name
+        document.getElementById('woo-product-create-form').insertAdjacentHTML('afterend', '<p>' + productName + ' successfully created</p>');
+        // Reset the form for new input
+        console.log(productName + " created");
+        document.getElementById('woo-product-create-form').reset();
+        // Optionally, hide or reset additional fields manually if needed
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        document.getElementById('woo-product-create-form').insertAdjacentHTML('afterend', '<p>Error creating product</p>');
+    });
 });
+document.addEventListener('DOMContentLoaded', function() {
+    const categoriesContainer = document.getElementById('product_categories_checkboxes');
+    if (categoriesContainer && wooProductBlockData.categories) {
+        wooProductBlockData.categories.forEach(function(category) {
+            const checkboxHtml = '<label>' +
+                '<input type="checkbox" name="product_categories[]" value="' + category.id + '"> ' + category.name +
+                '</label>';
+            categoriesContainer.insertAdjacentHTML('beforeend', checkboxHtml);
+        });
+    }
+});
+
+
 </script>
+
+
+
 
 HTML;
 
