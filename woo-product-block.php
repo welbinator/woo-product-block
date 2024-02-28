@@ -125,11 +125,10 @@ document.getElementById('woo-product-create-form').addEventListener('submit', fu
 
     const formData = new FormData(this);
     const productName = formData.get('product_name'); // Get the product name from the form
-    console.log('Product name: ' + productName);
-    // Convert FormData to JSON
-    // Assuming all your form fields can be stringified directly
     const jsonFormData = Object.fromEntries(formData);
-
+    const categories = formData.getAll('product_categories[]');
+    jsonFormData.product_categories = categories;
+    
     fetch(wooProductBlockData.apiUrl, {
         method: 'POST',
         headers: {
@@ -183,7 +182,7 @@ HTML;
 
 
 function create_woocommerce_product_from_form( WP_REST_Request $request ) {
-    // Assuming all data is sent in the request and nonce is verified elsewhere
+    // Extracting all data sent in the request
     $data = $request->get_params();
 
     $product = new WC_Product_Simple();
@@ -195,20 +194,20 @@ function create_woocommerce_product_from_form( WP_REST_Request $request ) {
         $product->set_sale_price($data['sale_price']);
     }
     $product->set_virtual('yes' === $data['is_virtual']);
-    // Handle product categories, thumbnail, and stock quantity as needed
 
-    $product_id = $product->save();
+    $product_id = $product->save(); // Save to get an ID before setting categories
 
-    // Handle setting product categories if provided
-    if (!empty($data['product_categories'])) {
-        $product->set_category_ids([$data['product_categories']]); // Array of category IDs
-        $product->save();
+    // Handle product categories if provided
+    if (!empty($data['product_categories']) && is_array($data['product_categories'])) {
+        $product->set_category_ids($data['product_categories']); // Expects an array of term IDs
+        $product->save(); // Save again with categories
     }
 
-    // Handle product thumbnail and stock logic here
+    // Further handling for thumbnail, stock, etc.
 
     return new WP_REST_Response(['message' => 'Product successfully created', 'product_id' => $product_id], 200);
 }
+
 
 add_action( 'rest_api_init', function () {
     register_rest_route( 'your-namespace/v1', '/create-product', array(
