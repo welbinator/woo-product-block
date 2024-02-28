@@ -123,12 +123,15 @@ function toggleStockField(checkbox) {
 document.getElementById('woo-product-create-form').addEventListener('submit', function(event) {
     event.preventDefault();
 
+    // FormData to collect and process form data
     const formData = new FormData(this);
     const productName = formData.get('product_name'); // Get the product name from the form
     const jsonFormData = Object.fromEntries(formData);
     const categories = formData.getAll('product_categories[]');
     jsonFormData.product_categories = categories;
     
+
+    // Fetch API call to submit the form data to the server
     fetch(wooProductBlockData.apiUrl, {
         method: 'POST',
         headers: {
@@ -144,19 +147,42 @@ document.getElementById('woo-product-create-form').addEventListener('submit', fu
         return response.json();
     })
     .then(data => {
-        console.log(data);
-        // Display success message with the product name
+        // Success: Displaying a message with the product name and resetting the form
         document.getElementById('woo-product-create-form').insertAdjacentHTML('afterend', '<p>' + productName + ' successfully created</p>');
-        // Reset the form for new input
-        console.log(productName + " created");
+
+        // Clearing the form manually for inputs that may not be cleared by form.reset()
         document.getElementById('woo-product-create-form').reset();
-        // Optionally, hide or reset additional fields manually if needed
+        clearCustomFormElements();
+
+        // Removing the success message after a delay to make the UI cleaner
+        // setTimeout(() => {
+        //     successMessage.remove();
+        // }, 5000);
     })
     .catch(error => {
         console.error('Error:', error);
         document.getElementById('woo-product-create-form').insertAdjacentHTML('afterend', '<p>Error creating product</p>');
     });
 });
+
+// Function to clear any custom form elements that are not reset by default
+function clearCustomFormElements() {
+    // Example: Resetting a custom select dropdown or checkboxes if you have them
+    // Note: Replace 'yourCustomElementId' with your actual element IDs
+    const customSelects = document.querySelectorAll('.yourCustomSelectClass');
+    customSelects.forEach(select => {
+        select.selectedIndex = 0; // Reset to the first option
+    });
+
+    const customCheckboxes = document.querySelectorAll('.yourCustomCheckboxClass');
+    customCheckboxes.forEach(checkbox => {
+        checkbox.checked = false; // Uncheck the checkbox
+    });
+
+    // Add more reset logic for other custom UI components as needed
+}
+
+
 document.addEventListener('DOMContentLoaded', function() {
     const categoriesContainer = document.getElementById('product_categories_checkboxes');
     if (categoriesContainer && wooProductBlockData.categories) {
@@ -203,6 +229,13 @@ function create_woocommerce_product_from_form( WP_REST_Request $request ) {
         $product->set_stock_quantity($data['stock']); // Set stock quantity
     } else {
         $product->set_manage_stock(false); // Disable stock management if not set
+    }
+
+    // Handle "Limit 1 per customer?" functionality
+    if (!empty($data['limit_per_customer']) && $data['limit_per_customer'] === 'yes') {
+        $product->set_sold_individually(true);
+    } else {
+        $product->set_sold_individually(false);
     }
 
     $product_id = $product->save(); // Save to get an ID before setting categories
