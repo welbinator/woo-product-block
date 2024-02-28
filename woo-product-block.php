@@ -190,23 +190,35 @@ function create_woocommerce_product_from_form( WP_REST_Request $request ) {
     $product->set_description($data['product_description']);
     $product->set_short_description($data['product_excerpt']);
     $product->set_regular_price($data['price']);
+    
     if (!empty($data['sale_price'])) {
         $product->set_sale_price($data['sale_price']);
     }
+
     $product->set_virtual('yes' === $data['is_virtual']);
+
+    // Handle stock and manage stock status based on 'set_quantity' checkbox
+    if (!empty($data['set_quantity']) && $data['set_quantity'] === 'yes' && isset($data['stock'])) {
+        $product->set_manage_stock(true); // Enable stock management
+        $product->set_stock_quantity($data['stock']); // Set stock quantity
+    } else {
+        $product->set_manage_stock(false); // Disable stock management if not set
+    }
 
     $product_id = $product->save(); // Save to get an ID before setting categories
 
     // Handle product categories if provided
     if (!empty($data['product_categories']) && is_array($data['product_categories'])) {
         $product->set_category_ids($data['product_categories']); // Expects an array of term IDs
-        $product->save(); // Save again with categories
     }
 
-    // Further handling for thumbnail, stock, etc.
+    $product->save(); // Save again with all settings
+
+    // Further handling for thumbnail, etc., goes here
 
     return new WP_REST_Response(['message' => 'Product successfully created', 'product_id' => $product_id], 200);
 }
+
 
 
 add_action( 'rest_api_init', function () {
